@@ -1,4 +1,4 @@
 node_modules
-package-lock.json
 server.js
-.gitignore
+react-app/node_modules
+react-app/.env
