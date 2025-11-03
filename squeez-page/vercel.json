@@ -1,13 +1,25 @@
 {
   "version": 2,
+  "buildCommand": "echo 'No build needed'",
+  "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
   "routes": [
     {
-      "src": "/",
-      "dest": "/index.html"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
-      "src": "/(.*\\.html)",
-      "dest": "/$1"
+      "src": "/admin.html",
+      "dest": "/admin.html"
+    },
+    {
+      "src": "/index.html",
+      "dest": "/index.html"
     },
     {
       "src": "/(.*\\.js)",
@@ -20,6 +32,10 @@
     {
       "src": "/image/(.*)",
       "dest": "/image/$1"
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
     }
   ]
 }
