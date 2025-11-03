@@ -1,6 +1,25 @@
 {
-  "rewrites": [
-    { "source": "/api/signup", "destination": "/api/signup" },
-    { "source": "/api/signups", "destination": "/api/signups" }
+  "version": 2,
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/(.*\\.html)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*\\.js)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*\\.css)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/image/(.*)",
+      "dest": "/image/$1"
+    }
   ]
 }
