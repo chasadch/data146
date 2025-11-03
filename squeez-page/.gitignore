@@ -1,8 +1,7 @@
 node_modules/
-package-lock.json
-react-app/node_modules/
-react-app/package-lock.json
-react-app/dist/
+dist/
+react-app/
 .env
 .DS_Store
 *.log
+server.js
