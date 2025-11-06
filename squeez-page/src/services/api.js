@@ -90,3 +90,21 @@ export const getLocationFromIP = async (ip) => {
   
   return 'Unknown';
 };
+
+// Send broadcast email to all signups
+export const sendBroadcast = async (subject, message, fromEmail) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/send-broadcast`, {
+      subject,
+      message,
+      fromEmail
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Broadcast error:', error);
+    return { 
+      success: false, 
+      error: error.response?.data?.error || 'Failed to send broadcast email' 
+    };
+  }
+};

@@ -5,4 +5,4 @@ react-app/
 *.log
 server.js
 /dist
-nul
+.vercel

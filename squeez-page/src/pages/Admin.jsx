@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSignups, adminLogin, isAdminLoggedIn, adminLogout } from '../services/api';
+import { getSignups, adminLogin, isAdminLoggedIn, adminLogout, sendBroadcast } from '../services/api';
 
 function Admin() {
   const navigate = useNavigate();
@@ -14,6 +14,15 @@ function Admin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Email broadcast states
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailFrom, setEmailFrom] = useState('onboarding@resend.dev');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSuccess, setEmailSuccess] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
     if (isAdminLoggedIn()) {
@@ -108,6 +117,39 @@ function Admin() {
     return signups.filter(s => new Date(s.created_at) >= weekAgo).length;
   };
 
+  const handleSendBroadcast = async (e) => {
+    e.preventDefault();
+    if (!emailSubject || !emailMessage) {
+      setEmailError('Subject and message are required');
+      return;
+    }
+
+    setSendingEmail(true);
+    setEmailError('');
+    setEmailSuccess('');
+
+    console.log('🚀 Sending broadcast email...');
+    const result = await sendBroadcast(emailSubject, emailMessage, emailFrom);
+    console.log('📬 Broadcast result:', result);
+    
+    if (result.success) {
+      const count = result.data?.recipientCount || result.recipientCount || signups.length;
+      setEmailSuccess(`Email sent successfully to ${count} recipients!`);
+      setEmailSubject('');
+      setEmailMessage('');
+      setTimeout(() => {
+        setEmailSuccess('');
+        setShowEmailComposer(false);
+      }, 3000);
+    } else {
+      const errorMsg = result.error || result.details || 'Failed to send email';
+      console.error('❌ Broadcast error:', errorMsg);
+      setEmailError(errorMsg);
+    }
+    
+    setSendingEmail(false);
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-gray-900">
@@ -178,6 +220,95 @@ function Admin() {
             Logout
           </button>
         </div>
+
+        {/* Email Broadcast Button */}
+        <div className="mb-6">
+          <button 
+            onClick={() => setShowEmailComposer(!showEmailComposer)}
+            className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-medium transition flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+              <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+            </svg>
+            {showEmailComposer ? 'Hide Email Composer' : 'Send Broadcast Email'}
+          </button>
+        </div>
+
+        {/* Email Composer */}
+        {showEmailComposer && (
+          <div className="bg-gray-800 rounded-lg p-6 mb-8">
+            <h2 className="text-2xl font-bold mb-4">Compose Broadcast Email</h2>
+            <p className="text-gray-400 mb-6">This email will be sent to all {signups.length} signups</p>
+            
+            <form onSubmit={handleSendBroadcast}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">From Email</label>
+                <input 
+                  type="email"
+                  value={emailFrom}
+                  onChange={(e) => setEmailFrom(e.target.value)}
+                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="onboarding@resend.dev"
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
+                <input 
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter email subject..."
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Message (HTML supported)</label>
+                <textarea 
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  rows="8"
+                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter your message... You can use HTML tags like <strong>, <p>, <br>, etc."
+                  required
+                />
+              </div>
+
+              {emailSuccess && (
+                <div className="mb-4 bg-green-900/20 border border-green-500 rounded-lg p-3 text-green-400">
+                  {emailSuccess}
+                </div>
+              )}
+
+              {emailError && (
+                <div className="mb-4 bg-red-900/20 border border-red-500 rounded-lg p-3 text-red-400">
+                  {emailError}
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <button 
+                  type="submit"
+                  disabled={sendingEmail}
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-6 py-2 rounded-lg font-medium transition"
+                >
+                  {sendingEmail ? 'Sending...' : `Send to ${signups.length} Recipients`}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowEmailComposer(false)}
+                  className="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg font-medium transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
