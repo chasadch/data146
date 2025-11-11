@@ -4,3 +4,5 @@ react-app/
 .DS_Store
 *.log
 server.js
+/dist
+nul
