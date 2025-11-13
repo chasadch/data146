@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.PROD 
-  ? 'https://data12-nu.vercel.app/api' 
+  ? '/api'
   : 'http://localhost:3001/api';
 
 // Submit early access signup
@@ -36,17 +36,43 @@ export const getSignups = async () => {
   }
 };
 
-// Admin login (simple hardcoded validation for now)
+// Admin login with localStorage-stored password (fallback to default)
 export const adminLogin = (email, password) => {
-  // Hardcoded credentials - match with your existing setup
   const ADMIN_EMAIL = 'admin@drumlatch.com';
-  const ADMIN_PASSWORD = 'admin123';
-  
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+  const ADMIN_PASSWORD_DEFAULT = 'admin123';
+  const storedPassword = typeof window !== 'undefined' ? localStorage.getItem('admin_password') : null;
+  const currentPassword = storedPassword || ADMIN_PASSWORD_DEFAULT;
+
+  if (email === ADMIN_EMAIL && password === currentPassword) {
     sessionStorage.setItem('admin_logged_in', 'true');
     return { success: true };
   }
   return { success: false, error: 'Invalid credentials' };
+};
+
+// Reset admin password using old password verification (client-side storage only)
+export const resetAdminPassword = (oldPassword, newPassword) => {
+  const ADMIN_PASSWORD_DEFAULT = 'admin123';
+  const storedPassword = typeof window !== 'undefined' ? localStorage.getItem('admin_password') : null;
+  const currentPassword = storedPassword || ADMIN_PASSWORD_DEFAULT;
+
+  if (!oldPassword || !newPassword) {
+    return { success: false, error: 'Both old and new passwords are required' };
+  }
+  if (oldPassword !== currentPassword) {
+    return { success: false, error: 'Old password is incorrect' };
+  }
+  if (newPassword.length < 6) {
+    return { success: false, error: 'New password must be at least 6 characters' };
+  }
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('admin_password', newPassword);
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: 'Failed to store new password' };
+  }
 };
 
 // Check if admin is logged in

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { neon } = require('@neondatabase/serverless');
@@ -9,8 +10,10 @@ const PORT = process.env.PORT || 3001;
 // Neon database connection
 const sql = neon('postgresql://neondb_owner:npg_r8LO5uIJjWMK@ep-shiny-truth-a8ee4js3-pooler.eastus2.azure.neon.tech/neondb?sslmode=require');
 
-// Resend email service
-const resend = new Resend('re_MBC7UZhh_4mZJYYuZ1WMPMd4mVaVwfhXo');
+// Resend email service (env-driven)
+const resend = new Resend(process.env.RESEND_API_KEY);
+const DEFAULT_FROM = process.env.MAIL_FROM || 'updates@drumlatch.co';
+const RESEND_TEST_MODE = (process.env.RESEND_TEST_MODE || 'false').toLowerCase() === 'true';
 
 app.use(cors());
 app.use(express.json());
@@ -236,6 +239,11 @@ app.post('/api/send-broadcast', async (req, res) => {
   try {
     const { subject, message, fromEmail } = req.body;
 
+    if (!process.env.RESEND_API_KEY) {
+      console.error('Missing RESEND_API_KEY');
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
+
     if (!subject || !message) {
       return res.status(400).json({ error: 'Subject and message are required' });
     }
@@ -250,7 +258,33 @@ app.post('/api/send-broadcast', async (req, res) => {
       return res.status(400).json({ error: 'No signups found' });
     }
 
-    const from = fromEmail || 'onboarding@resend.dev';
+    const from = fromEmail || DEFAULT_FROM;
+
+    // Helpers: basic validation and filtering of test/disposable domains
+    const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const isBlockedDomain = (email) => {
+      const domain = String(email).split('@')[1]?.toLowerCase() || '';
+      const blocked = [
+        'example.com','example.org','example.net','test.com','test.org','test.net',
+        'invalid','localhost','localdomain','mailinator.com','yopmail.com','tempmail.com'
+      ];
+      return blocked.includes(domain) || domain.endsWith('.test');
+    };
+
+    // Build unique, valid recipient list
+    const unique = new Set();
+    const validRecipients = signups
+      .map((s) => s.email)
+      .filter((e) => !!e)
+      .filter((e) => isValidEmail(e))
+      .filter((e) => !isBlockedDomain(e))
+      .filter((e) => (unique.has(e) ? false : (unique.add(e), true)));
+
+    if (validRecipients.length === 0) {
+      return res.status(400).json({ error: 'No valid recipients to send' });
+    }
+
+    const toList = RESEND_TEST_MODE ? validRecipients.map(() => 'delivered@resend.dev') : validRecipients;
     
     // Email HTML template function
     const getEmailHTML = (recipientName) =>
@@ -300,42 +334,52 @@ app.post('/api/send-broadcast', async (req, res) => {
     `;
 
     // Prepare batch emails - Resend supports up to 100 emails per batch
-    const batchEmails = signups.map(signup => ({
+    const makeBatchPayload = (chunk) => chunk.map((email, idx) => ({
       from: from,
-      to: [signup.email],
+      to: [email],
       subject: subject,
-      html: getEmailHTML(signup.name)
+      html: getEmailHTML(`Recipient ${idx + 1}`)
     }));
-    
-    console.log(`📧 Sending batch emails to ${signups.length} recipients...`);
+
+    const chunkSize = 100;
+    const chunks = [];
+    for (let i = 0; i < toList.length; i += chunkSize) {
+      chunks.push(toList.slice(i, i + chunkSize));
+    }
+
+    console.log(`📧 Sending batch emails to ${toList.length} valid recipients... (chunks: ${chunks.length})`);
+
+    const emailIds = [];
+    let sentCount = 0;
 
     try {
-      // Send using Resend batch API
-      const result = await resend.batch.send(batchEmails);
-      
-      console.log('📨 Resend response:', JSON.stringify(result, null, 2));
-      
-      if (result.error) {
-        console.error('❌ Batch send error:', result.error);
-        return res.status(500).json({ 
-          success: false,
-          error: 'Failed to send emails',
-          details: typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
-        });
+      for (const c of chunks) {
+        const payload = makeBatchPayload(c);
+        const result = await resend.batch.send(payload);
+        if (result.error) {
+          console.error('❌ Batch send error:', result.error);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to send emails',
+            details: typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
+          });
+        }
+        const ids = result.data?.data || result.data || [];
+        emailIds.push(...ids);
+        sentCount += c.length;
       }
 
       console.log('✅ Batch send successful!');
-      console.log('Email IDs:', result.data?.data);
-      
-      res.status(200).json({ 
-        success: true, 
-        message: `Email sent successfully to ${signups.length} recipients!`,
-        recipientCount: signups.length,
-        emailIds: result.data?.data || result.data
+      res.status(200).json({
+        success: true,
+        message: `Email sent successfully to ${sentCount} recipients!`,
+        recipientCount: sentCount,
+        skipped: signups.length - validRecipients.length,
+        emailIds
       });
     } catch (error) {
       console.error('❌ Batch send exception:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
         error: 'Failed to send batch emails',
         details: error.message

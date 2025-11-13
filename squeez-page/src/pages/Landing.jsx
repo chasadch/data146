@@ -48,7 +48,7 @@ function Landing() {
       {/* Logo Section */}
       <div className="logo-section">
         <img className="drumLogo1" src="/image/logo.svg" alt="DrumLatch" />
-        <img className="drumLogo2" src="/image/logo2.svg" alt="DrumLatch" />
+        <img className="drumLogo2" src="/image/Logo2.svg" alt="DrumLatch" />
       </div>
 
       {/* Main Content */}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSignups, adminLogin, isAdminLoggedIn, adminLogout, sendBroadcast } from '../services/api';
+import { getSignups, adminLogin, isAdminLoggedIn, adminLogout, sendBroadcast, resetAdminPassword } from '../services/api';
 
 function Admin() {
   const navigate = useNavigate();
@@ -8,6 +8,14 @@ function Admin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState(false);
+  // Reset password UI state
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [oldPwd, setOldPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
   
   const [signups, setSignups] = useState([]);
   const [filteredSignups, setFilteredSignups] = useState([]);
@@ -19,7 +27,7 @@ function Admin() {
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
-  const [emailFrom, setEmailFrom] = useState('onboarding@resend.dev');
+  const [emailFrom, setEmailFrom] = useState('updates@drumlatch.co');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -30,6 +38,19 @@ function Admin() {
       fetchSignups();
     }
   }, []);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    if (showEmailComposer) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = original || 'auto';
+    }
+    return () => {
+      document.body.style.overflow = original || 'auto';
+    };
+  }, [showEmailComposer]);
 
   useEffect(() => {
     if (searchTerm) {
@@ -59,6 +80,28 @@ function Admin() {
     adminLogout();
     setIsLoggedIn(false);
     navigate('/');
+  };
+
+  const handleResetPassword = (e) => {
+    e.preventDefault();
+    setResetError('');
+    setResetSuccess('');
+    if (newPwd !== confirmPwd) {
+      setResetError('New password and confirm password do not match');
+      return;
+    }
+    setResetting(true);
+    const res = resetAdminPassword(oldPwd, newPwd);
+    if (res.success) {
+      setResetSuccess('Password updated successfully. Use the new password to sign in.');
+      setOldPwd('');
+      setNewPwd('');
+      setConfirmPwd('');
+      setShowResetPassword(false);
+    } else {
+      setResetError(res.error || 'Failed to reset password');
+    }
+    setResetting(false);
   };
 
   const fetchSignups = async () => {
@@ -117,37 +160,39 @@ function Admin() {
     return signups.filter(s => new Date(s.created_at) >= weekAgo).length;
   };
 
-  const handleSendBroadcast = async (e) => {
-    e.preventDefault();
+  const handleSendBroadcast = async () => {
     if (!emailSubject || !emailMessage) {
       setEmailError('Subject and message are required');
       return;
     }
 
-    setSendingEmail(true);
-    setEmailError('');
-    setEmailSuccess('');
+    try {
+      setSendingEmail(true);
+      setEmailError('');
+      setEmailSuccess('');
 
-    console.log('🚀 Sending broadcast email...');
-    const result = await sendBroadcast(emailSubject, emailMessage, emailFrom);
-    console.log('📬 Broadcast result:', result);
-    
-    if (result.success) {
-      const count = result.data?.recipientCount || result.recipientCount || signups.length;
-      setEmailSuccess(`Email sent successfully to ${count} recipients!`);
-      setEmailSubject('');
-      setEmailMessage('');
-      setTimeout(() => {
-        setEmailSuccess('');
-        setShowEmailComposer(false);
-      }, 3000);
-    } else {
-      const errorMsg = result.error || result.details || 'Failed to send email';
-      console.error('❌ Broadcast error:', errorMsg);
-      setEmailError(errorMsg);
+      const result = await sendBroadcast(emailSubject, emailMessage, emailFrom);
+      
+      if (result.success) {
+        const count = result.data?.recipientCount || result.recipientCount || signups.length;
+        setEmailSuccess(`Email sent successfully to ${count} recipients!`);
+        setEmailSubject('');
+        setEmailMessage('');
+        setTimeout(() => {
+          setEmailSuccess('');
+          setShowEmailComposer(false);
+        }, 3000);
+      } else {
+        const errorMsg = result.error || result.details || 'Failed to send email';
+        console.error('❌ Broadcast error:', errorMsg);
+        setEmailError(errorMsg);
+      }
+    } catch (err) {
+      console.error('❌ Unexpected broadcast error:', err);
+      setEmailError(err.message || 'Unexpected error');
+    } finally {
+      setSendingEmail(false);
     }
-    
-    setSendingEmail(false);
   };
 
   if (!isLoggedIn) {
@@ -169,7 +214,7 @@ function Admin() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="admin@drumlatch.com"
+                placeholder="Enter email"
               />
             </div>
 
@@ -198,7 +243,70 @@ function Admin() {
             >
               Sign In
             </button>
+            <div className="mt-4 text-center">
+              <button type="button" onClick={() => setShowResetPassword(!showResetPassword)} className="text-sm text-blue-400 hover:text-blue-300">
+                {showResetPassword ? 'Hide Reset Password' : 'Reset Password'}
+              </button>
+              <div className="mt-2">
+                <button type="button" onClick={() => navigate('/forgot-password')} className="text-sm text-gray-300 hover:text-white underline">
+                  Forgot Password?
+                </button>
+              </div>
+            </div>
           </form>
+          {showResetPassword && (
+            <div className="mt-6 bg-gray-800 rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4 text-white">Reset Password</h3>
+              {resetSuccess && (
+                <div className="mb-4 bg-green-900/20 border border-green-500 rounded-lg p-3 text-green-400 text-sm">{resetSuccess}</div>
+              )}
+              {resetError && (
+                <div className="mb-4 bg-red-900/20 border border-red-500 rounded-lg p-3 text-red-400 text-sm">{resetError}</div>
+              )}
+              <form onSubmit={handleResetPassword}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Old Password</label>
+                  <input 
+                    type="password"
+                    value={oldPwd}
+                    onChange={(e) => setOldPwd(e.target.value)}
+                    className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter old password"
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                  <input 
+                    type="password"
+                    value={newPwd}
+                    onChange={(e) => setNewPwd(e.target.value)}
+                    className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter new password"
+                    required
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
+                  <input 
+                    type="password"
+                    value={confirmPwd}
+                    onChange={(e) => setConfirmPwd(e.target.value)}
+                    className="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Confirm new password"
+                    required
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  disabled={resetting}
+                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white font-medium py-3 rounded-lg transition"
+                >
+                  {resetting ? 'Updating...' : 'Update Password'}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -213,12 +321,20 @@ function Admin() {
             <h1 className="text-4xl font-bold header-font mb-2">DrumLatch Admin Dashboard</h1>
             <p className="text-gray-400">Early Access Signups</p>
           </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/reset-password')}
+              className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition"
+            >
+              Reset Password
+            </button>
           <button 
             onClick={handleLogout}
             className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-medium transition"
           >
             Logout
           </button>
+          </div>
         </div>
 
         {/* Email Broadcast Button */}
@@ -237,11 +353,25 @@ function Admin() {
 
         {/* Email Composer */}
         {showEmailComposer && (
-          <div className="bg-gray-800 rounded-lg p-6 mb-8">
-            <h2 className="text-2xl font-bold mb-4">Compose Broadcast Email</h2>
-            <p className="text-gray-400 mb-6">This email will be sent to all {signups.length} signups</p>
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+            <div className="relative bg-gray-800 rounded-lg p-6 w-full max-w-2xl">
+              <button
+                aria-label="Close"
+                onClick={() => setShowEmailComposer(false)}
+                className="absolute right-3 top-3 text-gray-400 hover:text-gray-200"
+              >✕</button>
+              <h2 className="text-2xl font-bold mb-2">Compose Broadcast Email</h2>
+              <p className="text-gray-400 mb-6">This email will be sent to all {signups.length} signups</p>
+
+              {/* Sending overlay */}
+              {sendingEmail && (
+                <div className="absolute inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center rounded-lg z-50">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-400"></div>
+                  <span className="ml-3 text-purple-300">Sending...</span>
+                </div>
+              )}
             
-            <form onSubmit={handleSendBroadcast}>
+            <form onSubmit={(e) => e.preventDefault()}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-300 mb-2">From Email</label>
                 <input 
@@ -292,7 +422,8 @@ function Admin() {
 
               <div className="flex gap-4">
                 <button 
-                  type="submit"
+                  type="button"
+                  onClick={handleSendBroadcast}
                   disabled={sendingEmail}
                   className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 px-6 py-2 rounded-lg font-medium transition"
                 >
@@ -307,6 +438,7 @@ function Admin() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
         )}
 

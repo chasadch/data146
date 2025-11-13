@@ -1,7 +1,8 @@
 body {
     /* height: 1024px; */
     background-color: black;
-    background-image: url('image/bg.png');
+    /* Use absolute path so Vite serves from public root on Vercel */
+    background-image: url('/image/bg.png');
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center center;
