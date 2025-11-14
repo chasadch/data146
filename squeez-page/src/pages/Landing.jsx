@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { submitSignup } from '../services/api';
+import { submitSignup, resendWelcomeEmail } from '../services/api';
 
 function Landing() {
   const [name, setName] = useState('');
@@ -8,18 +8,25 @@ function Landing() {
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [lastSignupEmail, setLastSignupEmail] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setShowSuccess(false);
     setShowError(false);
+    setEmailStatus(null);
 
     try {
-      // Server will handle IP and location detection
       const result = await submitSignup(name, email, demoRequest);
 
       if (result.success) {
+        setLastSignupEmail(email);
+        if (result.emailStatus) {
+          setEmailStatus(result.emailStatus);
+        }
         setShowSuccess(true);
         setName('');
         setEmail('');
@@ -35,6 +42,29 @@ function Landing() {
       setTimeout(() => setShowError(false), 5000);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    if (!lastSignupEmail) return;
+    setResendLoading(true);
+    setEmailStatus(null);
+    setShowError(false);
+
+    try {
+      const result = await resendWelcomeEmail(lastSignupEmail);
+      if (result.success) {
+        setEmailStatus(result.emailStatus || { sent: true, error: null });
+      } else {
+        setEmailStatus({ sent: false, error: result.error || 'Failed to resend welcome email' });
+        setShowError(true);
+      }
+    } catch (err) {
+      console.error('Resend email handler error:', err);
+      setEmailStatus({ sent: false, error: 'Unexpected error while resending email' });
+      setShowError(true);
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -125,6 +155,27 @@ function Landing() {
         {showSuccess && (
           <div className="text-green-400 text-center mt-4 inter-font">
             Thank you! Your early access request has been submitted.
+          </div>
+        )}
+
+        {emailStatus && (
+          <div className={`text-center mt-2 inter-font ${emailStatus.sent ? 'text-green-400' : 'text-yellow-400'}`}>
+            {emailStatus.sent
+              ? 'A welcome email has been sent to your inbox.'
+              : `Signup succeeded but email could not be sent: ${emailStatus.error}`}
+          </div>
+        )}
+
+        {lastSignupEmail && (
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={handleResendEmail}
+              disabled={resendLoading}
+              className="text-sm text-blue-400 hover:text-blue-300 underline disabled:opacity-60"
+            >
+              {resendLoading ? 'Resending email...' : 'Resend Welcome Email'}
+            </button>
           </div>
         )}
 

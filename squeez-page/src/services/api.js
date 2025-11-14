@@ -12,12 +12,28 @@ export const submitSignup = async (name, email, demoRequest) => {
       email,
       demo_request: demoRequest
     });
-    return { success: true, data: response.data };
+    const { success, data, emailStatus } = response.data || {};
+    return { success, data, emailStatus };
   } catch (error) {
     console.error('Signup error:', error);
     return { 
       success: false, 
       error: error.response?.data?.error || 'Failed to submit signup' 
+    };
+  }
+};
+
+// Resend welcome email for a given address
+export const resendWelcomeEmail = async (email) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/resend-welcome`, { email });
+    const { success, emailStatus, error } = response.data || {};
+    return { success, emailStatus, error };
+  } catch (err) {
+    console.error('Resend welcome email error:', err);
+    return {
+      success: false,
+      error: err.response?.data?.error || 'Failed to resend welcome email'
     };
   }
 };
