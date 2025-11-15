@@ -5,7 +5,11 @@ React version of the DrumLatch early access signup application.
 ## Features
 
 - **Landing Page**: Early access signup form with IP-based location tracking
+- **Automatic Welcome Emails**: Sends promotional welcome email immediately after signup using Resend API
+- **Email Resend**: Users can resend welcome emails if delivery fails
+- **Email Event Logging**: All email events tracked in database with status and error details
 - **Admin Dashboard**: Login-protected dashboard to view and manage signups
+- **Email Logs Dashboard**: View all email events, statuses, and delivery tracking
 - **CSV Export**: Export signup data to CSV
 - **Search & Filter**: Search signups by name or email
 - **Stats**: View total signups, today's signups, and this week's signups
@@ -84,5 +88,18 @@ react-app/
 
 ## API Endpoints
 
-- `POST /api/signup` - Submit early access signup
+- `POST /api/signup` - Submit early access signup (automatically sends welcome email)
+- `POST /api/resend-welcome` - Resend welcome email to a user
 - `GET /api/signups` - Get all signups (admin)
+- `GET /api/email-logs` - Get email event logs (admin)
+- `POST /api/send-broadcast` - Send broadcast email to all signups (admin)
+
+## Email Features
+
+See [EMAIL_FEATURES.md](./EMAIL_FEATURES.md) for detailed documentation on:
+- Automatic welcome email system
+- Email resend functionality
+- Email event logging and tracking
+- Admin email logs dashboard
+- Configuration and setup
+- Testing procedures

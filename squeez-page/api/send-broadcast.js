@@ -9,6 +9,30 @@ const RESEND_TEST_MODE = (process.env.RESEND_TEST_MODE || 'false').toLowerCase()
 
 const sql = neon('postgresql://neondb_owner:npg_r8LO5uIJjWMK@ep-shiny-truth-a8ee4js3-pooler.eastus2.azure.neon.tech/neondb?sslmode=require');
 
+// Helper function to log email events - with error handling
+async function logEmailEvent(email, recipientName, emailType, subject, status, resendEmailId = null, errorMessage = null, metadata = {}) {
+  try {
+    await sql`
+      INSERT INTO email_logs (
+        email, recipient_name, email_type, subject, status, resend_email_id, error_message, metadata, created_at
+      ) VALUES (
+        ${email},
+        ${recipientName},
+        ${emailType},
+        ${subject},
+        ${status},
+        ${resendEmailId},
+        ${errorMessage},
+        ${JSON.stringify(metadata)},
+        NOW()
+      )
+    `;
+    console.log(`📝 Email event logged: ${emailType} to ${email} - ${status}`);
+  } catch (err) {
+    console.log('⚠️ Email logging skipped (table may not exist):', err.message);
+  }
+}
+
 module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -161,6 +185,23 @@ module.exports = async (req, res) => {
       }
 
       console.log('✅ Batch send successful!');
+      
+      // Log each successful broadcast email
+      for (let i = 0; i < validRecipients.length; i++) {
+        const recipientEmail = validRecipients[i];
+        const signup = signups.find(s => s.email === recipientEmail);
+        await logEmailEvent(
+          recipientEmail,
+          signup?.name || 'Unknown',
+          'broadcast',
+          subject,
+          'sent',
+          emailIds[i]?.id || null,
+          null,
+          { from: from }
+        );
+      }
+      
       res.status(200).json({
         success: true,
         message: `Email sent successfully to ${sentCount} recipients!`,

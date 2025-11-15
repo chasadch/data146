@@ -24,14 +24,24 @@ function Landing() {
 
       if (result.success) {
         setLastSignupEmail(email);
+        
+        // Always set email status from the result
         if (result.emailStatus) {
           setEmailStatus(result.emailStatus);
+          console.log('📧 Email status:', result.emailStatus);
         }
+        
         setShowSuccess(true);
         setName('');
         setEmail('');
         setDemoRequest(false);
-        setTimeout(() => setShowSuccess(false), 5000);
+        
+        // Keep success message visible longer if email failed
+        const timeout = result.emailStatus?.sent === false ? 10000 : 5000;
+        setTimeout(() => {
+          setShowSuccess(false);
+          // Don't clear email status so resend button stays available
+        }, timeout);
       } else {
         setShowError(true);
         setTimeout(() => setShowError(false), 5000);
@@ -153,28 +163,59 @@ function Landing() {
 
         {/* Success Message */}
         {showSuccess && (
-          <div className="text-green-400 text-center mt-4 inter-font">
-            Thank you! Your early access request has been submitted.
+          <div className="bg-green-900/20 border border-green-500 rounded-lg p-4 text-center mt-4 inter-font">
+            <div className="text-green-400 font-semibold mb-1">
+              ✓ Success! Your early access request has been submitted.
+            </div>
           </div>
         )}
 
+        {/* Email Status Display */}
         {emailStatus && (
-          <div className={`text-center mt-2 inter-font ${emailStatus.sent ? 'text-green-400' : 'text-yellow-400'}`}>
-            {emailStatus.sent
-              ? 'A welcome email has been sent to your inbox.'
-              : `Signup succeeded but email could not be sent: ${emailStatus.error}`}
+          <div className={`rounded-lg p-4 text-center mt-3 inter-font border ${
+            emailStatus.sent 
+              ? 'bg-green-900/20 border-green-500 text-green-400' 
+              : 'bg-yellow-900/20 border-yellow-500 text-yellow-400'
+          }`}>
+            {emailStatus.sent ? (
+              <div>
+                <div className="font-semibold mb-1">📧 Welcome Email Sent!</div>
+                <div className="text-sm">Check your inbox for your welcome message.</div>
+              </div>
+            ) : (
+              <div>
+                <div className="font-semibold mb-1">⚠️ Email Delivery Issue</div>
+                <div className="text-sm mb-2">
+                  Your signup was successful, but we couldn't send the welcome email.
+                </div>
+                <div className="text-xs opacity-80">
+                  {emailStatus.error || 'Unknown error'}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {lastSignupEmail && (
+        {/* Resend Email Button */}
+        {lastSignupEmail && emailStatus && !emailStatus.sent && (
           <div className="text-center mt-4">
             <button
               type="button"
               onClick={handleResendEmail}
               disabled={resendLoading}
-              className="text-sm text-blue-400 hover:text-blue-300 underline disabled:opacity-60"
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-60 text-white px-6 py-2 rounded-lg font-medium transition inter-font text-sm"
             >
-              {resendLoading ? 'Resending email...' : 'Resend Welcome Email'}
+              {resendLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Resending...
+                </span>
+              ) : (
+                '🔄 Resend Welcome Email'
+              )}
             </button>
           </div>
         )}

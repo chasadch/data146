@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSignups, adminLogin, isAdminLoggedIn, adminLogout, sendBroadcast, resetAdminPassword } from '../services/api';
+import { getSignups, adminLogin, isAdminLoggedIn, adminLogout, sendBroadcast, resetAdminPassword, getEmailLogs } from '../services/api';
 
 function Admin() {
   const navigate = useNavigate();
@@ -22,6 +22,11 @@ function Admin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Email logs states
+  const [emailLogs, setEmailLogs] = useState([]);
+  const [showEmailLogs, setShowEmailLogs] = useState(false);
+  const [emailLogsLoading, setEmailLogsLoading] = useState(false);
   
   // Email broadcast states
   const [showEmailComposer, setShowEmailComposer] = useState(false);
@@ -115,6 +120,15 @@ function Admin() {
       setError(result.error);
     }
     setLoading(false);
+  };
+
+  const fetchEmailLogs = async () => {
+    setEmailLogsLoading(true);
+    const result = await getEmailLogs();
+    if (result.success) {
+      setEmailLogs(result.data);
+    }
+    setEmailLogsLoading(false);
   };
 
   const getLocation = (signup) => {
@@ -337,8 +351,8 @@ function Admin() {
           </div>
         </div>
 
-        {/* Email Broadcast Button */}
-        <div className="mb-6">
+        {/* Action Buttons */}
+        <div className="mb-6 flex gap-4 flex-wrap">
           <button 
             onClick={() => setShowEmailComposer(!showEmailComposer)}
             className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-medium transition flex items-center gap-2"
@@ -348,6 +362,21 @@ function Admin() {
               <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
             </svg>
             {showEmailComposer ? 'Hide Email Composer' : 'Send Broadcast Email'}
+          </button>
+          
+          <button 
+            onClick={() => {
+              setShowEmailLogs(!showEmailLogs);
+              if (!showEmailLogs && emailLogs.length === 0) {
+                fetchEmailLogs();
+              }
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg font-medium transition flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+            </svg>
+            {showEmailLogs ? 'Hide Email Logs' : 'View Email Logs'}
           </button>
         </div>
 
@@ -457,6 +486,77 @@ function Admin() {
             <p className="text-3xl font-bold">{getWeekCount()}</p>
           </div>
         </div>
+
+        {/* Email Logs Section */}
+        {showEmailLogs && (
+          <div className="bg-gray-800 rounded-lg p-6 mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Email Logs</h2>
+              <button 
+                onClick={fetchEmailLogs}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition text-sm"
+              >
+                Refresh Logs
+              </button>
+            </div>
+
+            {emailLogsLoading ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                <p className="mt-2 text-gray-400">Loading email logs...</p>
+              </div>
+            ) : emailLogs.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">No email logs found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Subject</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Error</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {emailLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-gray-700/50 transition">
+                        <td className="px-4 py-3 text-sm">{log.email}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            log.email_type === 'welcome' ? 'bg-green-900/30 text-green-400' :
+                            log.email_type === 'broadcast' ? 'bg-purple-900/30 text-purple-400' :
+                            'bg-blue-900/30 text-blue-400'
+                          }`}>
+                            {log.email_type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            log.status === 'sent' ? 'bg-green-900/30 text-green-400' :
+                            log.status === 'failed' ? 'bg-red-900/30 text-red-400' :
+                            'bg-yellow-900/30 text-yellow-400'
+                          }`}>
+                            {log.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-300 max-w-xs truncate">{log.subject}</td>
+                        <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-red-400 max-w-xs truncate">
+                          {log.error_message || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Search and Filter */}
         <div className="mb-6 flex flex-col md:flex-row gap-4">

@@ -3,10 +3,36 @@ const { Resend } = require('resend');
 require('dotenv').config();
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const DEFAULT_FROM = process.env.MAIL_FROM || 'updates@drumlatch.co';
+const DEFAULT_FROM = 'updates@drumlatch.co'; // Your verified domain
 const RESEND_TEST_MODE = (process.env.RESEND_TEST_MODE || 'false').toLowerCase() === 'true';
 
 const sql = neon('postgresql://neondb_owner:npg_r8LO5uIJjWMK@ep-shiny-truth-a8ee4js3-pooler.eastus2.azure.neon.tech/neondb?sslmode=require');
+
+// Helper function to log email events - with error handling
+async function logEmailEvent(email, recipientName, emailType, subject, status, resendEmailId = null, errorMessage = null, metadata = {}) {
+  try {
+    // Check if email_logs table exists, if not, skip logging
+    await sql`
+      INSERT INTO email_logs (
+        email, recipient_name, email_type, subject, status, resend_email_id, error_message, metadata, created_at
+      ) VALUES (
+        ${email},
+        ${recipientName},
+        ${emailType},
+        ${subject},
+        ${status},
+        ${resendEmailId},
+        ${errorMessage},
+        ${JSON.stringify(metadata)},
+        NOW()
+      )
+    `;
+    console.log(`📝 Email event logged: ${emailType} to ${email} - ${status}`);
+  } catch (err) {
+    // Silently fail if table doesn't exist - don't break signup
+    console.log('⚠️ Email logging skipped (table may not exist):', err.message);
+  }
+}
 
 // Geolocation helper
 async function fetchGeoData(clientIP) {
@@ -122,7 +148,8 @@ module.exports = async (req, res) => {
     const saved = result[0];
     let emailStatus = { sent: false, error: null };
 
-    if (process.env.RESEND_API_KEY) {
+    // Send welcome email automatically
+    if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'undefined' && process.env.RESEND_API_KEY.length > 10) {
       try {
         const to = RESEND_TEST_MODE ? 'delivered@resend.dev' : email;
         const subject = 'Welcome to DrumLatch Early Access';
@@ -152,15 +179,26 @@ module.exports = async (req, res) => {
           subject,
           html
         });
+
         console.log('✅ Welcome email sent result:', JSON.stringify(emailResult));
-        emailStatus.sent = true;
+        
+        if (emailResult.error) {
+          emailStatus.sent = false;
+          emailStatus.error = emailResult.error.message || 'Failed to send welcome email';
+          await logEmailEvent(email, name, 'welcome', subject, 'failed', null, emailStatus.error, { ip: geo?.ip || clientIP });
+        } else {
+          emailStatus.sent = true;
+          await logEmailEvent(email, name, 'welcome', subject, 'sent', emailResult.data?.id, null, { ip: geo?.ip || clientIP });
+        }
       } catch (emailErr) {
         console.error('❌ Promotional email send error:', emailErr);
         emailStatus.error = emailErr.message || 'Failed to send welcome email';
+        await logEmailEvent(email, name, 'welcome', 'Welcome to DrumLatch Early Access', 'failed', null, emailStatus.error, { ip: geo?.ip || clientIP });
       }
     } else {
-      console.warn('⚠️ RESEND_API_KEY not set, skipping welcome email send');
-      emailStatus.error = 'Email service not configured';
+      console.warn('⚠️ RESEND_API_KEY not set or invalid, skipping welcome email send');
+      emailStatus.error = 'API key is invalid - Please update your Resend API key';
+      await logEmailEvent(email, name, 'welcome', 'Welcome to DrumLatch Early Access', 'failed', null, 'API key is invalid', { ip: geo?.ip || clientIP });
     }
 
     res.status(200).json({ success: true, data: saved, emailStatus });

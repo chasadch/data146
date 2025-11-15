@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favicon Test - DrumLatch</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+        }
+        .test-card {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .favicon-preview {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 15px 0;
+            padding: 15px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        .favicon-preview img {
+            border: 2px solid #444;
+            border-radius: 4px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .loaded { background: #10b981; color: white; }
+        .error { background: #ef4444; color: white; }
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #0051cc; }
+        code {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Favicon Test Page</h1>
+    <p>This page tests if all favicons are loading correctly on your device.</p>
+
+    <div class="test-card">
+        <h2>Favicon Status</h2>
+        <div id="favicon-tests"></div>
+    </div>
+
+    <div class="test-card">
+        <h2>Your Device Info</h2>
+        <p><strong>User Agent:</strong> <code id="userAgent"></code></p>
+        <p><strong>Platform:</strong> <code id="platform"></code></p>
+        <p><strong>Is Mobile:</strong> <code id="isMobile"></code></p>
+    </div>
+
+    <div class="test-card">
+        <h2>Clear Cache Instructions</h2>
+        <div id="instructions"></div>
+        <button onclick="window.location.href='/clear-cache.html'">Go to Cache Clearing Page</button>
+        <button onclick="window.location.href='/'">Back to Home</button>
+    </div>
+
+    <script>
+        const favicons = [
+            { url: '/image/favicon/favicon.ico', size: 'ICO', name: 'Favicon ICO' },
+            { url: '/image/favicon/favicon-16x16.png', size: '16x16', name: 'Favicon 16x16' },
+            { url: '/image/favicon/favicon-32x32.png', size: '32x32', name: 'Favicon 32x32' },
+            { url: '/image/favicon/android-chrome-192x192.png', size: '192x192', name: 'Android Chrome 192' },
+            { url: '/image/favicon/android-chrome-512x512.png', size: '512x512', name: 'Android Chrome 512' },
+            { url: '/image/favicon/apple-touch-icon.png', size: '180x180', name: 'Apple Touch Icon' }
+        ];
+
+        const testsContainer = document.getElementById('favicon-tests');
+
+        favicons.forEach(favicon => {
+            const div = document.createElement('div');
+            div.className = 'favicon-preview';
+            
+            const img = document.createElement('img');
+            img.src = favicon.url + '?v=' + Date.now();
+            img.width = 32;
+            img.height = 32;
+            img.alt = favicon.name;
+            
+            const info = document.createElement('div');
+            info.innerHTML = `<strong>${favicon.name}</strong><br><small>${favicon.size}</small>`;
+            
+            const status = document.createElement('span');
+            status.className = 'status';
+            status.textContent = 'Loading...';
+            
+            img.onload = () => {
+                status.className = 'status loaded';
+                status.textContent = '✓ Loaded';
+            };
+            
+            img.onerror = () => {
+                status.className = 'status error';
+                status.textContent = '✗ Failed';
+            };
+            
+            div.appendChild(img);
+            div.appendChild(info);
+            div.appendChild(status);
+            testsContainer.appendChild(div);
+        });
+
+        // Device info
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        document.getElementById('platform').textContent = navigator.platform;
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        document.getElementById('isMobile').textContent = isMobile ? 'Yes' : 'No';
+
+        // Instructions based on device
+        const instructionsDiv = document.getElementById('instructions');
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            instructionsDiv.innerHTML = `
+                <p><strong>Safari iOS:</strong></p>
+                <ol>
+                    <li>Go to Settings → Safari</li>
+                    <li>Tap "Clear History and Website Data"</li>
+                    <li>Return to this page</li>
+                </ol>
+            `;
+        } else if (/Android/i.test(navigator.userAgent)) {
+            instructionsDiv.innerHTML = `
+                <p><strong>Chrome Android:</strong></p>
+                <ol>
+                    <li>Tap the three dots menu</li>
+                    <li>Go to Settings → Privacy → Clear browsing data</li>
+                    <li>Select "Cached images and files"</li>
+                    <li>Tap "Clear data"</li>
+                </ol>
+            `;
+        } else {
+            instructionsDiv.innerHTML = `
+                <p><strong>Desktop Browser:</strong></p>
+                <p>Press <code>Ctrl + Shift + Delete</code> (Windows) or <code>Cmd + Shift + Delete</code> (Mac)</p>
+                <p>Then clear "Cached images and files"</p>
+            `;
+        }
+    </script>
+</body>
+</html>
+

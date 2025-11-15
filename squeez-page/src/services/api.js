@@ -150,3 +150,17 @@ export const sendBroadcast = async (subject, message, fromEmail) => {
     };
   }
 };
+
+// Get email logs (admin)
+export const getEmailLogs = async () => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/email-logs`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Get email logs error:', error);
+    return { 
+      success: false, 
+      error: error.response?.data?.error || 'Failed to fetch email logs' 
+    };
+  }
+};

@@ -3,10 +3,34 @@ const { Resend } = require('resend');
 const { neon } = require('@neondatabase/serverless');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const DEFAULT_FROM = process.env.MAIL_FROM || 'updates@drumlatch.co';
+const DEFAULT_FROM = 'updates@drumlatch.co'; // Your verified domain
 const RESEND_TEST_MODE = (process.env.RESEND_TEST_MODE || 'false').toLowerCase() === 'true';
 
 const sql = neon('postgresql://neondb_owner:npg_r8LO5uIJjWMK@ep-shiny-truth-a8ee4js3-pooler.eastus2.azure.neon.tech/neondb?sslmode=require');
+
+// Helper function to log email events - with error handling
+async function logEmailEvent(email, recipientName, emailType, subject, status, resendEmailId = null, errorMessage = null, metadata = {}) {
+  try {
+    await sql`
+      INSERT INTO email_logs (
+        email, recipient_name, email_type, subject, status, resend_email_id, error_message, metadata, created_at
+      ) VALUES (
+        ${email},
+        ${recipientName},
+        ${emailType},
+        ${subject},
+        ${status},
+        ${resendEmailId},
+        ${errorMessage},
+        ${JSON.stringify(metadata)},
+        NOW()
+      )
+    `;
+    console.log(`📝 Email event logged: ${emailType} to ${email} - ${status}`);
+  } catch (err) {
+    console.log('⚠️ Email logging skipped (table may not exist):', err.message);
+  }
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -30,9 +54,11 @@ module.exports = async (req, res) => {
 
     if (!process.env.RESEND_API_KEY) {
       console.warn('⚠️ RESEND_API_KEY not set, cannot resend welcome email');
+      await logEmailEvent(email, name || 'Unknown', 'resend_welcome', 'Welcome to DrumLatch Early Access', 'failed', null, 'Email service not configured', {});
       return res.status(500).json({ success: false, error: 'Email service not configured' });
     }
 
+    // Fetch user name from database if not provided
     const rows = await sql`SELECT name FROM early_access_signups WHERE email = ${email} LIMIT 1`;
     const dbName = rows[0]?.name;
     const displayName = name || dbName || 'there';
@@ -69,11 +95,21 @@ module.exports = async (req, res) => {
         subject,
         html
       });
+      
       console.log('✅ Resend welcome email result:', JSON.stringify(emailResult));
-      emailStatus.sent = true;
+      
+      if (emailResult.error) {
+        emailStatus.sent = false;
+        emailStatus.error = emailResult.error.message || 'Failed to resend welcome email';
+        await logEmailEvent(email, displayName, 'resend_welcome', subject, 'failed', null, emailStatus.error, {});
+      } else {
+        emailStatus.sent = true;
+        await logEmailEvent(email, displayName, 'resend_welcome', subject, 'sent', emailResult.data?.id, null, {});
+      }
     } catch (err) {
       console.error('❌ Resend welcome email error:', err);
       emailStatus.error = err.message || 'Failed to resend welcome email';
+      await logEmailEvent(email, displayName, 'resend_welcome', subject, 'failed', null, emailStatus.error, {});
     }
 
     return res.status(emailStatus.sent ? 200 : 500).json({

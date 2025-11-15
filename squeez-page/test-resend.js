@@ -1,6 +1,6 @@
 const { Resend } = require('resend');
 
-const resend = new Resend('re_MBC7UZhh_4mZJYYuZ1WMPMd4mVaVwfhXo');
+const resend = new Resend('re_b2VX1mTE_EM6xnHfG6YDeAR7nqEucX7qL');
 
 async function testResend() {
   console.log('🧪 Testing Resend API...\n');
